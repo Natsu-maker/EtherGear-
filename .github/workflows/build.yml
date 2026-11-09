@@ -1,0 +1,65 @@
+name: Build EtherGear APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # If you uploaded EtherGear.zip (easiest from a phone), unpack it and build from there.
+      # If you uploaded the project folders normally, it builds from the repo root.
+      - name: Locate project
+        run: |
+          if [ -f EtherGear.zip ]; then
+            mkdir -p project_unzipped
+            unzip -q -o EtherGear.zip -d project_unzipped
+            echo "PROJECT_DIR=project_unzipped" >> "$GITHUB_ENV"
+          else
+            echo "PROJECT_DIR=." >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Build debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          cp "${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk" EtherGear.apk
+
+      - name: Upload APK (workflow artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: EtherGear-apk
+          path: EtherGear.apk
+
+      # Direct-download link: open the repo's "Releases" page on your phone and tap EtherGear.apk
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: EtherGear build ${{ github.run_number }}
+          files: EtherGear.apk
+          
