@@ -20,9 +20,12 @@ jobs:
       - name: Locate project
         run: |
           if [ -f EtherGear.zip ]; then
+            rm -rf project_unzipped
             mkdir -p project_unzipped
             unzip -q -o EtherGear.zip -d project_unzipped
-            echo "PROJECT_DIR=project_unzipped" >> "$GITHUB_ENV"
+            # Works whether the zip has the project at its root or inside one folder.
+            SETTINGS=$(find project_unzipped -maxdepth 3 -name settings.gradle.kts | head -1)
+            echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
           else
             echo "PROJECT_DIR=." >> "$GITHUB_ENV"
           fi
@@ -41,13 +44,14 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Build debug APK
+      # Release build = optimized (R8) and MUCH smoother than a debug build.
+      - name: Build release APK
         working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Rename APK
         run: |
-          cp "${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk" EtherGear.apk
+          cp "${{ env.PROJECT_DIR }}/app/build/outputs/apk/release/app-release.apk" EtherGear.apk
 
       - name: Upload APK (workflow artifact)
         uses: actions/upload-artifact@v4
@@ -62,4 +66,3 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: EtherGear build ${{ github.run_number }}
           files: EtherGear.apk
-          
